@@ -1,7 +1,11 @@
 from typing import TYPE_CHECKING, List, Tuple
+from itcl_quantization.quantization.operators import Quantization
+from itcl_quantizer.equalizers.adaround.Calculationsint import ADAInt
+from itcl_quantizer.quantizer.distributions.distribution import Distribution
 import tensorflow as tf
 import numpy as np
 import math
+import matplotlib.pyplot as plt
 import dimod
 import greedy
 import time
@@ -13,12 +17,11 @@ from itcl_quantizer.tensor_extractor.abstract_layer import (
     QuantizationResult,
 )
 from itcl_quantizer.tensor_extractor.keras.utils import CheckType
-from itcl_quantizer.equalizers.adaround.qubocalculation import Input_Round_Calculation, dterm_Calculation, Bterm1_Calculation_Subespacio, Bterm2_Calculation_Subespacio,Bterm_Calculation_Vuelta, Bterm3_Calculation_Subespacio, Bterm4_Calculation_Subespacio,Bterm_Calculation_Vuelta4, Quantum_annealing_simulator,Unir_Diccionarios,Tensor_Redondeo, Matrix_Calculation,QAOA_Solution,Tensor_Redondeo2
+from itcl_quantizer.equalizers.adaround.qubocalculation import *
 from typing import cast
 from itcl_quantizer.tensor_extractor.tensor import NodeTensorTensor
 if TYPE_CHECKING:
     from itcl_quantizer.tensor_extractor.keras.layers.keras_dense import KerasDense
-
 
 class QUBOAnnealer(IRoundOptimizer):
     """Rounding Annealer"""
@@ -80,8 +83,108 @@ class QUBOAnnealer(IRoundOptimizer):
         bias_s, bias_zp = q_bias.scale, q_bias.zero_point
         q_input = q_dense_op.inputs[0]
         input_s, input_zp = q_input.scale, q_input.zero_point
-        print(bias_s/(kernel_s*input_s))
 
+        '''
+        zeros = np.zeros((64,13))
+        print(kernel)
+        print('kernelzp',kernel_zp)
+        print(kernel.shape)
+        for i in range(0,64):
+            for j in range(0,13):
+                if kernel[i][j]/kernel_s-np.round(kernel[i][j]/kernel_s)<0:
+                    zeros[i][j]=1
+        print(zeros)
+        '''
+
+        '''
+        print(input_f)
+        if 'dense' in q_kernel.name:
+            print(input_f.shape)
+            np.savetxt("input.csv", input_f, delimiter=",")
+        '''
+        '''
+    
+        umbral = 0.1
+
+        # Identificar las filas que cumplen con la condición del umbral
+        filas_a_mantener = np.all(input_f <= umbral, axis=1)
+
+        # Seleccionar las filas que deseas mantener en la matriz original
+        input_f = input_f[filas_a_mantener]
+        '''
+   
+        '''
+        input_s=1
+        kernel_s=1
+        bias_s=1
+        
+        n=50
+        kernel = np.random.uniform(-1, 1, size=(n,n))
+        bias = np.random.uniform( -1,1, size=(n,))
+        #input_f = np.random.exponential(scale=10.0, size=(1000, n))
+        input_f = np.random.beta(0.5,0.5,size=(1000, n))
+
+        #input_f = np.random.normal(-1, 1, size=(1000,n))
+        #print(input_f)
+        #input_f = np.zeros((1000, n))
+        #input_f[:, 2] = -1 * np.random.rand(1000)
+        #input_f[:, 1] = -1 * np.random.rand(1000)
+
+        #print(input_f)
+        output_f = np.zeros((input_f.shape[0], bias.shape[0]))
+        for i in range(0,input_f[:,0].shape[0]):
+            output_f[i]=kernel.dot(input_f[i])+bias
+        
+        
+        
+        q2_kernel = Quantization('int4')
+        kernel_dist = Distribution(kernel)
+
+        kernel_s, w_zpk = kernel_dist.quantize(q2_kernel,
+             force_zp=0, symmetric=False
+        )
+        q2_input = Quantization('int8')
+        input_dist= Distribution(input_f)
+        input_s, w_zpi = input_dist.quantize(q2_input, symmetric=False
+        )
+        bias_s=input_s*kernel_s
+        
+        '''
+
+        xdim=input_f[0].shape
+        InputDimension=xdim[0]
+        ydim=bias.shape
+        OutputDimension=ydim[0]
+        Redondeo_Kernel=np.zeros((OutputDimension,InputDimension))
+        Redondeo_Bias=np.zeros((OutputDimension))
+        M = np.zeros((OutputDimension*InputDimension+OutputDimension, OutputDimension*InputDimension+OutputDimension))
+        DiccionarioT={}
+        AdaInt=ADAInt(input_f,kernel,bias,output_f,input_s,kernel_s,bias_s)
+        for l in range(0,OutputDimension):
+            print('l',l)
+            Dicionario1={}
+            Dicionario2={}
+            diccionario2={}
+            Dicionario3={}
+            Dicionario4={}
+            diccionario4={}
+            Dicionario={}
+            diccionario1=AdaInt.bterm1_calculation_subespacio(Dicionario1,l)
+            diccionario2, Bt2=AdaInt.bterm2_calculation_subespacio(Dicionario2,l)
+            diccionario2=AdaInt.bterm2_calculation_repeticion(Bt2,diccionario2,l)
+            diccionario3=AdaInt.bterm3_calculation_subespacio(Dicionario3,l)
+            diccionario4,bt4=AdaInt.bterm4_calculation_subespacio(Dicionario4,l)
+            diccionario4=AdaInt.bterm4_calculation_repeticion(diccionario4,bt4,l)
+            diccionario_unido=AdaInt.unir_diccionarios(diccionario1,diccionario2,diccionario3,diccionario4,Dicionario)
+            AdaInt.matrix_calculation(M,diccionario1,diccionario2,diccionario3,diccionario4)
+            result=AdaInt.quantum_annealing(diccionario_unido)
+            print(result)
+            #result2=AdaInt.qaoa_solution(diccionario_unido)
+            Redondeo_Kernel[l], Redondeo_Bias[l]=AdaInt.tensor_redondeo(result,Redondeo_Kernel,Redondeo_Bias,l)
+        tensors=[Redondeo_Kernel,Redondeo_Bias]
+        print(tensors)        
+
+        #np.savetxt("input_ele1.csv", input_f, delimiter=",")
         xdim=input_f[0].shape
         InputDimension=xdim[0]
         ydim=bias.shape
@@ -97,12 +200,12 @@ class QUBOAnnealer(IRoundOptimizer):
         Redondeo_Bias2=np.zeros((OutputDimension))
         M = np.zeros((OutputDimension*InputDimension+OutputDimension, OutputDimension*InputDimension+OutputDimension))
         DiccionarioT={}
-    
-        '''
+        print(input_f.shape)
+        
         #inicio = time.time()
         Input_Round2=Input_Round_Calculation(input_f,input_s)
         dTermino2=dterm_Calculation(bias,kernel,Input_Round2,output_f,kernel_s,input_s,bias_s)
-        #print(dTermino2)
+ 
         for l in range(0,OutputDimension):
             print('l',l)
             Dicionario1={}
@@ -130,15 +233,25 @@ class QUBOAnnealer(IRoundOptimizer):
             DiccionarioT=Unir_Diccionarios(diccionario1,diccionario2,diccionario3,diccionario4,DiccionarioT)
             Matrix_Calculation(M,diccionario1,diccionario2,diccionario3,diccionario4, OutputDimension,InputDimension)
             result=Quantum_annealing_simulator(diccionarioM,l)
-            #print('result1',result)
+            print('result1',result)
             #result2=QAOA_Solution(diccionario)
             Redondeo_Kernel[l], Redondeo_Bias[l]=Tensor_Redondeo(result,Redondeo_Kernel,Redondeo_Bias,l,InputDimension)
-        #print('diccionario1',DiccionarioT)     
+        #print('diccionario1',DiccionarioT)  
+        
         #Redondeo_Kernel = np.random.choice([0, 1], size=(OutputDimension, InputDimension))
         #Redondeo_Bias = np.random.choice([0, 1], size=(OutputDimension))
-        '''
-        tensors=[Redondeo_Kernel,Redondeo_Bias]
         
+        tensors=[Redondeo_Kernel,Redondeo_Bias]
+
+        
+        '''
+        hits = 0
+        for i in range(0,64):
+            for j in range(0,13):
+                if zeros[i][j]==Redondeo_Kernel[i][j]:
+                    hits+=1
+        print(hits)
+        '''
         return tensors
 
     def optimize(self) -> Tuple[List[np.ndarray], float]:

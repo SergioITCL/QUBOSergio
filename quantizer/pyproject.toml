@@ -20,12 +20,13 @@ PyYAML = "^6.0"
 
 itcl-quantization-core = {path = "../core", develop = true}
 itcl-inference-engine = {path = "../inference_engine", develop = true}
-qiskit = "0.45"
+qiskit = "1.0"
 dimod = "^0.12.14"
 greedy = "^0.1.1"
 dwave-system = "1.23"
 dwave-neal = "^0.6.0"
 qiskit-optimization = "0.6"
+qiskit-aer = "0.13.3"
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"
